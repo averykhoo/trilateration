@@ -1,9 +1,9 @@
 import random
 import time
-from numpy import matrix
-import numpy as np
-
 from copy import deepcopy
+
+import numpy as np
+from numpy import matrix
 
 
 def measure_distance(a, b, noise_variance=0.0):
@@ -15,7 +15,7 @@ def F(A_, r_, C):
     return sum(np.abs(np.sqrt(np.sum(np.power(C - Ai, 2))) - ri) for Ai, ri in zip(A_, r_))
 
 
-def delta(A_, r_, C, alpha=1):
+def delta(A_, r_, C, alpha=1.0):
     d_ = [np.sqrt(np.sum(np.power(C - Ai, 2))) for Ai in A_]
 
     # jTf := J(C).T * f(C)
@@ -82,32 +82,25 @@ def NLSQ(guess, f_error, f_update, max_iterations=100):
     :return: most likely tag position
     """
     # Aim of NLSQ is to minimise Error function F = sum(ei ** 2),
-    # ei = sqrt((x - xi) ** 2+(y - yi) ** 2+(z - zi) ** 2)  -  r(i), i = 1 to n
+    # ei = sqrt((x - xi) ** 2 + (y - yi) ** 2 + (z - zi) ** 2)  -  r(i), i = 1 to n
     # LSQ_e = sum(np.abs(np.sqrt(np.sum(np.power(T - Ai, 2))) - ri) for Ai, ri in zip(A_, r_))
     best_error = curr_error = f_error(guess)
-    # print curr_error, guess.T
-    # best_guess = guess.copy()
     best_guess = deepcopy(guess)
 
     for _ in range(max_iterations):
         prev_err = curr_error
-        # print guess
-        # print df(guess)
         guess = f_update(guess)
-        # guess = [a - b for a, b in zip(guess, df(guess))]
         curr_error = f_error(guess)
-        # print curr_error,guess.T
 
         if curr_error < best_error:
             best_error = curr_error
-            # best_guess = guess.copy()
             best_guess = deepcopy(guess)
 
         if abs(prev_err - curr_error) < 0.01:
             break
 
-    # return best_guess
-    return guess  # for testing against LSQ
+    return best_guess
+    # return guess  # for testing against LSQ
 
 
 if __name__ == '__main__':
@@ -115,14 +108,14 @@ if __name__ == '__main__':
     # must be 3-dimensional
     A_ = [
         # matrix([-2000, -2000, -2000]).T,
-        matrix([1000, 1000, 1000]).T,
+        matrix([0, 1000, 0]).T,
         # matrix([1000, 1000, -1000]).T,
         # matrix([1000, -1000, 1000]).T,
-        # matrix([1000, -1000, -1000]).T,
+        matrix([1000, -1000, -1000]).T,
         # matrix([-1000, 1000, 1000]).T,
-        matrix([-1000, 1000, -1000]).T,
-        matrix([-1000, -1000, 1000]).T,
-        matrix([-1000, -1000, -1000]).T,
+        matrix([1000, 0, -1000]).T,
+        matrix([1000, -1000, 0]).T,
+        matrix([0, -1000, -1000]).T,
     ]
 
     # set up test
@@ -133,7 +126,7 @@ if __name__ == '__main__':
     errs = []
 
     # begin test
-    for test_iter in range(10000):
+    for test_iter in range(100):
         # generate random answer
         answer = [random.randrange(-1000000, 1000000, 1) / 1000.0 for _ in range(3)]
 
@@ -186,7 +179,6 @@ if __name__ == '__main__':
     print('avg offset', sum(errs) / 1000)
     print('med offset', errs[len(errs) // 2])
 
-if 0 and __name__ == '__main__':
     # import autograd.numpy as np
     from autograd import grad
 
@@ -194,18 +186,19 @@ if 0 and __name__ == '__main__':
         # [-2000, -2000, -2000],
         [1000, 1000, 1000],
         # [1000, 1000,   -1000],
-        # [1000, -1000,  -1000],
+        [1000, -1000, -1000],
         [-1000, 1000, -1000],
         [-1000, -1000, 1000],
         [-1000, -1000, -1000],
     ]
 
     # set up test
+    e0 = 0
     e1 = 0
     e2 = 0
 
     # begin test
-    for test_iter in range(1000):
+    for test_iter in range(100):
         # generate random answer
         answer = [random.randrange(-1000000, 1000000, 1) / 1000.0 for _ in range(3)]
 
@@ -214,16 +207,17 @@ if 0 and __name__ == '__main__':
 
         print('ans  ', answer)
 
-        C = LSQ(map(lambda x: np.matrix(x).T, A_), r_)
+        C = LSQ([np.matrix(x).T for x in A_], r_)
         c = [i[0, 0] for i in list(C)]
+        e0 += measure_distance(C, matrix(answer).T, 0)
 
 
         def f_error(C):
-            return F(map(lambda x: np.matrix(x).T, A_), r_, C)
+            return F([np.matrix(x).T for x in A_], r_, C)
 
 
         def f_update(C):
-            return delta(map(lambda x: np.matrix(x).T, A_), r_, C, alpha=0.5)
+            return delta([np.matrix(x).T for x in A_], r_, C, alpha=0.5)
 
 
         print('lsq  ', C.T)
@@ -244,11 +238,9 @@ if 0 and __name__ == '__main__':
         g2 = grad(f2)
 
 
-        def u2(c):
+        def u2(c, e=0.1):
             dx, dy, dz = g2(c)
             x, y, z = c
-            e = 0.5
-
             return [x - dx * e, y - dy * e, z - dz * e]
 
 
@@ -257,5 +249,6 @@ if 0 and __name__ == '__main__':
         print('autog', c2)
         e2 += sum((c - a) ** 2 for c, a in zip(c2, answer)) ** .5
 
+    print(e0 / 1000)
     print(e1 / 1000)
     print(e2 / 1000)
